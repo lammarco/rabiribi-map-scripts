@@ -1,0 +1,6 @@
+#map files
+*.map
+*.json
+*/maps
+*/__pycache__
+*.pyc
