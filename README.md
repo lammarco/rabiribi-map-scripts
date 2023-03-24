@@ -1,23 +1,5 @@
-# rabiribi-randomizer-search
-!! This program uses Python 3+, and Requires .json files converted from Rabi-Ribi's .map files. 
-   .json map files are assumed to be converted using wcko's Rabi-Ribi Map Converter at https://github.com/wcko87/rbrb-map-converter
+This is an empty branch for new scripts to branch off of. Such scripts typically use Python 3+.
 
-Rabi-Ribi Randomizer Search
+Basic branch flow: branch from template to [script]-main -> version branches from [script]-main -> merge versions to [script]-main, then to main
 
-A python script to help players find progression items and eggs during randomizers (considered cheating if used in a race).
-
-Download:
-
--Download both rbrb_locations.db and rbrb_rando_search.py
-
--Put both into a safe place, probably the parent directory above the map files.
-
--Update the directorys at the top of the script as needed
-
---(the default has the script in the same directory as rbrb_locations.db and the folder s2_editable_maps that contains the jsons)
-
-How to use:
-
--Run rbrb_rando_search.py like any other Python3 script
-
--There will be input prompts, for things such as which maps to load and what to search for
+DO NOT MERGE INTO HERE.
