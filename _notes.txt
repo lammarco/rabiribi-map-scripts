@@ -1,0 +1,42 @@
+room size = (640,352) = 32 * (20,11)
+5 dead y-lines = 160: [11, 56, 101, 146, 191]
+
+tiledata = 500 x 200 = 100000
+max: 15360 + 640, 6144 + 352 = 24 x 18 room
+
+tileflip: x = 31st bit, y = 30th bit
+collision ids: tiled id + ???
+-+0 = space
+-+1 = full
+-+[2-13] = slope
+-+14/+15 = U/D semisolid
+-+16/+17 = L/R half
+
+-ribbon boss spawns offscreen if cocoa superspeed
+-upr 1 fight happens in forest save
+-cocoa 2 trigger = exit save right
+- kotri 2 trigger = enter from left
+-doors are 2 off
+-armored can clip but no zip?
+-pandora not triggering
+-hom2 saya leftmost floor missing collision; leftmost column of map apparently doesn't have collision
+some laser turrets don't have l/r mods
+-hom2 face boss doesn't spawn
+-credits 15100,7689 -> proper warp
+
+############################
+story with forced movements are totally broken
+-cicini -> ravine-town => park-town
+-rumi boss -> ribbon (415,164) => hardcoded
+-sysint2 jump event (178,140) => hardcoded
+-ch9 after sysint2 -> park (28,174)=> hardcoded
+-ch9 uprprc -> hardcoded
+
+
+softlocks:
+-cocoa -> tp (ribbon "don't go that way")
+-chocolate (starts above room, but can attack tp into room)
+-ch2->3 fight against ??? instead
+(postgame, warps to original room)
+-hom1, ritasaya warps 1room to the left
+-rainbow crystal
