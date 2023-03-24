@@ -5,9 +5,6 @@ from diffgenerator import generate_maps_from_diff_file
 JSON_IN_DIR = r'./maps/original/'
 JSON_OUT_DIR = r'./maps/out/'
 
-FLIP_X = True
-FLIP_Y = False #not fully implemented; expect softlocks and wrong warps
-
 def load_file(file_number:int):
     filename = f'{JSON_IN_DIR}area{file_number}.json'
     print(f'loading: area{file_number}.json',end='\t')
@@ -25,7 +22,7 @@ def map_routine(i:int):
     map_data = load_file(i)
 
     if i != 8:
-        flip_map(i, map_data, flip_x = True, flip_y = False)
+        flip_map(i, map_data)
     
 
     save_file(i,map_data)
@@ -35,13 +32,8 @@ def main():
     print('Note: map 5 (except tarnsitions) and map 8 are unchanged due to map conflicts')
     print()
     
-    if not (FLIP_X or FLIP_Y): print("both FLIP_X and FLIP_Y = False; 0 changes made")
-    else:
-        for i in range(10): map_routine(i)
+    for i in range(10): map_routine(i)
 
 if __name__ == '__main__':
-    #main()
-    generate_maps_from_diff_file('patch.txt')
-
-
-#tiled object dictionary format: "name":str, "height":int, "width": int, "y": int, "x": int, "type": str<tuple>
+    main()
+    #generate_maps_from_diff_file('patch.txt')
