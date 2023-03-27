@@ -1,96 +1,107 @@
-########################## DO NOT CHANGE
-#layer types
-TYPE_TILELAYER = 'tilelayer'
-TYPE_OBJLAYER  = 'objectgroup'
+from diffgenerator import map_coords, map_index
+
+SHOW_WARNINGS = True
+
+######################### DO NOT CHANGE
 #Room layers use different dimentions for flipping
 ROOMLAYERS = {'roombg','roomcolor','roomtype'}
-ROOM_DIM = (480*32, 192*32)
-OBJ_DIM  = (499*32, 202*32)
-#n_row = number of rows = number of tiles in column
-N_COL, N_ROW  = (500, 200)
+MINIMAP_DIM = (24, 17)
+ROOM_DIM = (19,10)
+WIDTH, HEIGHT  = (500, 200) #y_row = number of rows = number of tiles in column = for y pos
 
 #tile id constants
 x_flag = 2**31
 #y_flag = 2**30
 AFD = 452
 
-#rando flags set at the start, rando[x] is event 558's position+x; set value to x position of respective column BEFORE flipping
-RANDO1 = 112 * 32
-RANDO2 = 113 * 32
+#rando flags set at the start, event 558's position BEFORE flipping
+RANDO_FLAGS_X = 111
 
 X_SOFTLOCK = {0: (301,389)}
 TRANSITIONS_EVENTS = (range(161,171), range(200,206), range(227,233), (177, 207))
 TRANSITIONS = set( i for r in TRANSITIONS_EVENTS for i in r )
 
-def build_flipmap(pairs: list):
+def offset_307(i:int):
+    x = i // HEIGHT
+    if x == 115: return i-map_index(7,0) #rando force forest uprprc
+    if x == 319: return i+map_index(2,0) #starting forest uprprc
+    return i
+
+EVENT_OFFSETS = {420: lambda i: i - map_index(ROOM_DIM[0],0) #main event Rita Saya (HoM) warps 1 screen left
+                ,307: offset_307}       
+
+def build_swapmap(pairs: list):
     #pairs[:] = [(str(n1),str(n2)) for n1,n2 in pairs]
-    flipmap = dict()
-    flipmap.update((n1,str(n2)) for n1,n2 in pairs)
-    flipmap.update((n2,str(n1)) for n1,n2 in pairs)
-    return flipmap
+    swapmap = dict()
+    swapmap.update((n1,n2) for n1,n2 in pairs)
+    swapmap.update((n2,n1) for n1,n2 in pairs)
+    return swapmap
 
-_obj_map_x = build_flipmap([(195,196)])
+EVENT_MAP_X = build_swapmap( [(195,196)] )
 
-def flip_map(map_id:int, map_data:dict):
-    for layer in map_data['layers']:
-        if map_id != 5 and layer['type'] == TYPE_TILELAYER:
-            data = layer['data']
-            if layer['name'] == 'collision': swap_collision(data)
-            else:                            flip_layer_x(data)
-            flip_map_x(data)
-            
-        elif layer['type'] == TYPE_OBJLAYER:
-            if map_id == 5 and layer['name'] != 'event': continue
-            dimensions = ROOM_DIM if layer['name'] in ROOMLAYERS else OBJ_DIM
-            remove_softlocks(map_id, layer['objects'])
-            flip_obj(map_id, layer['objects'], dimensions)
+############## main flip function ##################
+def flip_map(map_id:int, layers:dict):
+    if map_id == 5: #only flip transitions for town
+        l = layers['event']
+        transpose(l, 200)
+        flip_transitions(l)
+        transpose(l, 500)
+        return
+    if map_id == 0:
+        l = layers['event']
+        transpose(l, 200)
+        flip_rando(layers['event'])
+        transpose(l, 500)
 
-def flip_map_x(tile_list): #tile_list is in 1d array
-    for r in range(N_ROW):
-        i, i1 = r*N_COL, (r+1)*N_COL
-        tile_list[i:i1] = tile_list[i1-1:   :-1] if i <= 0 else  \
-                          tile_list[i1-1:i-1:-1]
-        
+    for layer,data in layers.items():
+        transpose(data, 200)
+        if   layer == 'items':     pass
+        elif layer == 'event':     flip_events(map_id, data)
+        elif layer == 'collision': flip_collision(data, build_collision_flip(data))
+        else:                      flip_layer_x(data)
+        flip_map_x(data)
+        transpose(data, 500)
+
+def transpose(tile_list, spacing):
+    '''reorder data, from wcko87/rbrb-map-converter'''
+    l = [tile_list[i::spacing] for i in range(spacing)]
+    tile_list[:] = [t for x in l for t in x]
+
+def flip_map_x(tile_list:list):
+    for r in range(HEIGHT): flip_row(tile_list, r, WIDTH, HEIGHT)
+
+def flip_row(l:list, r:int, w:int, h:int):
+    '''l = 1d array of 2d map, r = i-th row, w = width, h = height'''
+    f, b = r*WIDTH, (r+1)*WIDTH
+    l[f:b] = l[b-1:   :-1] if r == 0 else \
+             l[b-1:f-1:-1]
+     
 def flip_layer_x(tile_list):
+    '''flip individual tiles <- apply to entire layer'''
     tile_list[:] = map(flip_tile_x, tile_list)
-    
+
+# flipping individual tiles      
 def flip_tile_x(tile: int):
-    def flippable_x(tile_id: int):
+    def flippable(tile_id: int):
         return tile_id != 0 and tile_id != AFD
-    return tile^x_flag if flippable_x(tile) else tile
+    #def flip_y(tile: int):
+    #    return tile - 5000 if (abs(tile) >= 5000) ^ (tile < 0) else tile + 5000
+        
+    return -tile if flippable(tile) else tile
     
 def flip_collision(tile_list, flip_dict):
-    def flip_collision_x(tile: int):
+    '''collisions use different tiles instead of flipping'''
+    def swap_collision(tile: int):
         return flip_dict[tile] if tile in flip_dict else tile
-    tile_list[:] = map(flip_collision_x, tile_list)
-
-def flip_obj(map_id:int, obj_list:'list<dict>', dimensions:tuple): 
-    for obj in obj_list:
-        name = int(obj['name'])
-        if map_id == 5 and name not in TRANSITIONS: continue
-        x = obj['x']
-        obj['x'] = dimensions[0] - x
-        
-        if name in _obj_map_x: obj['name'] = _obj_map_x[name]
-        if name == 420: obj['x'] += ROOM_DIM[0] #main event Rita Saya (HoM) warps 1 screen left
-        if name == 307:
-            if x == 3680:  obj['x'] +=  7 *32 #rando force forest uprprc
-            if x == 10208: obj['x'] += -2 *32 #starting forest uprprc
-        if (map_id == 0) and (obj['y'] <= (42*32)) and (name >= 5000): #setting events at the start of rando
-            if(x == RANDO1): obj['x'] += 2 *32
-            if(x == RANDO2): obj['x'] += 4 *32
-               
-def remove_softlocks(map_id:int, obj_list:'list<dict>'):
-    def check_x_softlock(o:dict):
-        return not (map_id in X_SOFTLOCK and int(o['name']) in X_SOFTLOCK[map_id])
-    obj_list[:] = [o for o in obj_list if check_x_softlock(o)]
-
+    tile_list[:] = map(swap_collision, tile_list)
     
-def swap_collision(data):
-    d = data.copy()
-    x = build_collision_flip(data)
-    flip_collision(data,x)
+def flip_events(map_id:int, events_list:'list<int>'):
+    '''same as collision,but also remove or move certain events'''
+    remove_softlocks(map_id, events_list)
+    events_list[:] = [EVENT_MAP_X[o] if o in EVENT_MAP_X else o for o in events_list]
+    offset_events(events_list)
 
+#collision helper
 def build_collision_flip(tiles):
     offset = min(filter(lambda t: t != 0, tiles)) - 1
     flip_direction = not(offset % 2)
@@ -101,3 +112,33 @@ def build_collision_flip(tiles):
     collision_flipx = {i:flip_col(i) for i in collision_ids}
     
     return collision_flipx
+
+#helpers for flip_events
+def swap(l:list, index1: int, index2: int):
+    #assume indices are not out-of-bounds
+    if SHOW_WARNINGS and map_coords(index1)[1] != map_coords(index2)[1]:
+        print('warning: swapping indices from different rows:'
+            , f'i1= {index1}', f'i2= {index2}'
+            , f'v1= {l[index1]}', f'v1= {l[index2]}')
+        return
+
+    l[index1], l[index2] = l[index2], l[index1]
+    
+def offset_events(events_list):
+    f = filter(lambda t: t[1] in EVENT_OFFSETS, enumerate(events_list))
+    for i,event in f: swap(events_list, i, EVENT_OFFSETS[event](i))
+
+def flip_rando(events_list:'list<int>'):                   
+    '''column for setting event flags at the start of rando'''
+    r = map_index(RANDO_FLAGS_X,0)
+    for offset in range(1,3):
+        i = map_index(offset,0)
+        t = r+i
+        if events_list[t] >= 5000:
+            swap(events_list, t, r-i)
+
+#def flip_transitions(               
+def remove_softlocks(map_id:int, events_list:'list<int>'):
+    def check_x_softlock(o:int):
+        return not (map_id in X_SOFTLOCK and o in X_SOFTLOCK[map_id])
+    events_list[:] = [o for o in events_list if check_x_softlock(o)]
