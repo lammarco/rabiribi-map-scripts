@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-DIR_ORIGINAL_MAPS = './maps/flipped'
+DIR_ORIGINAL_MAPS = './maps/generated'
 DIR_MODIFIED_MAPS = './maps/modified'
 DIR_GENERATED_MAPS = './maps/generated'
 
@@ -212,7 +212,6 @@ def box_format(x1, y1, w, h, layer_name, diff):
     box = [row[:max(i for i,v in enumerate([1]+row) if v != '')] for row in box]
     sb += [','.join(row) for row in box]
     return sb
-
 
 def line_format(layer_name, diff):
     sb = ['@%s:L' % layer_name]
