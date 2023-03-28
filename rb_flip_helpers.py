@@ -1,12 +1,8 @@
 SHOW_WARNINGS = True
 
 ######################### DO NOT CHANGE
-MINIMAP_DIM = (24, 17)
-ROOM_DIM = (19,10)
 WIDTH, HEIGHT  = (500, 200) #y_row = number of rows = number of tiles in column = for y pos
-
-#tile id constants
-AFD = 452
+AFD = 481
 
 def transpose(tile_list, spacing):
     '''reorder data, from wcko87/rbrb-map-converter'''

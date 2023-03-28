@@ -1,6 +1,6 @@
 from os import makedirs as mkdirs
 from os.path import join as osjoin
-from rb_flip import flip_map
+from rb_flip import flip_map, flip_minimap
 import diffgenerator as diff
 
 IN_DIR = r'./maps/original/'
@@ -14,6 +14,7 @@ def map_routine(i:int):
     map_data = diff.MapData(filepath(IN_DIR,i))
     if i != 8:
         flip_map(i, map_data.data_map)
+        flip_minimap(map_data.data_minimap)
     map_data.save_to_file  (filepath(OUT_DIR,i))
     print(f'saving area{i}.map...')
             

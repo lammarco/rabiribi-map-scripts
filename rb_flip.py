@@ -3,14 +3,9 @@ import rb_flip_helpers as rbf
 
 
 ######################### DO NOT CHANGE
-#Room layers use different dimentions for flipping
-ROOMLAYERS = {'roombg','roomcolor','roomtype'}
-MINIMAP_DIM = (24, 17)
+MINIMAP_DIM = (25, 18)
 ROOM_DIM = (19,10)
 WIDTH, HEIGHT  = (500, 200) #y_row = number of rows = number of tiles in column = for y pos
-
-#tile id constants
-AFD = 452
 
 #rando flags set at the start, event 558's position BEFORE flipping
 RANDO_FLAGS_X = 111
@@ -23,6 +18,13 @@ EVENT_OFFSETS = {420: lambda i: i - ROOM_DIM[0] #main event Rita Saya (HoM) warp
 
 
 ############## main flip function ##################
+def flip_minimap(layers:dict):
+    w,h = MINIMAP_DIM
+    for data in layers.values():
+        l = [data[i*h:(i+1)*h:] for i in range(w)] #list of columns
+        l.reverse()
+        data[:] = [t for l2 in l for t in l2]
+        
 def flip_map(map_id:int, layers:dict):
     if map_id == 5 or map_id == 0: #only flip transitions for town
         l = layers['event']
