@@ -5,8 +5,10 @@ from diffgenerator import MapData, map_coords
 
 IN_DIR = r'./maps/original/' 
 LOCATIONS_DB = './rbrb_locations.db'
+MIRROR_MODE = True
 
 #DO NOT CHANGE
+WIDTH = 500
 AREA_MAP = {
               0:'Southern Woodland',
               1:'Western Coast',
@@ -68,6 +70,7 @@ def extract_map(map_id:int):
     con = sqlite3.connect(LOCATIONS_DB,uri=True)
     cur = con.cursor()
     def parse_location(x,y):
+        if MIRROR_MODE: x = WIDTH - x - 1
         cur.execute('''SELECT NAME FROM ITEM_LOCATIONS
                        WHERE MAP_ID=? AND X=? AND Y=?''',
                        (map_id,x,y))
@@ -96,7 +99,8 @@ def extract_map(map_id:int):
     #egg    
     for i,egg in filter_layer(_check_egg,events):
         x,y = map_coords(i)
-        out['eggs'].add(parse_location(x,y))
+        loc = parse_location(x,y)
+        if loc is not None: out['eggs'].add(loc)
     con.close()
     return out
 
