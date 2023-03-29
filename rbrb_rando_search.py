@@ -1,45 +1,13 @@
-import json,re,sqlite3
+import sqlite3
+from os.path import join as osjoin
 from collections import defaultdict
-LOCATIONS_DB = 'rbrb_locations.db'
-JSON_MAPS_DIR = r'./s2_editable_maps/'
-############################loading################################
-def _process_input(file_numbers:str = '') -> list:
-    'provide a string of map numbers from 0-9; ex:"013" for 0,1,3'
-    if file_numbers == '': return [i for i in range(10)]
-    try:
-        assert type(file_numbers) is str, 'only strings accepted'
-        file_numbers = list(set(int(n) for n in file_numbers))
-        assert all(n >= 0 and n <= 9 for n in file_numbers), f'only numbers from 0-9: {n}'
-        return file_numbers
-    except Exception as e:
-        print('unknown input: ' + file_numbers)
-        print(type(e),e)
-    return []
+from diffgenerator import MapData, map_coords
 
-def _load_file(file_number:int):
-    filename = JSON_MAPS_DIR + f'area{file_number}.json'
-    print(f'loading: {filename}')
-    with open(filename,'r') as f:
-        return json.load(f)
+IN_DIR = r'./maps/original/' 
+LOCATIONS_DB = './rbrb_locations.db'
 
-def _check_item(obj:dict) -> bool:
-    '''returns True for items 1-95 (non-potions/atk ups)'''
-    try:
-        name = int(obj['name'])
-        return (name > 0 and name <= 95)
-    except:
-        return False
-
-def _check_egg(obj:dict) -> bool:
-    '''returns True for event 250 (easter egg)'''
-    try:
-        name = int(obj['name'])
-        return name == 250
-    except:
-        return False
-
-def map_id2name(map_id:int) ->str:
-    id_map = {
+#DO NOT CHANGE
+AREA_MAP = {
               0:'Southern Woodland',
               1:'Western Coast',
               2:'Island Core',
@@ -49,26 +17,60 @@ def map_id2name(map_id:int) ->str:
               6:'Plurkwood',
               7:'Subterranean Area',
               8:'Warp Destination',
-              9:'System Interior'}
-    return f'{map_id} {id_map[map_id]}'
+              9:'System Interior'
+            }
+PROGRESSION_IDS = {1,2,3,4,10,
+                   11,16,17,18,19,
+                   28,29,30,31,33,35}
 
-def id_str2int(id_str):
+############################loading################################
+def d2l(layer:list):
+    '''from wcko's diffgenerator, also found in mirror-mode branch'''
+    l = [layer[i::200] for i in range(200)]
+    return [t for l2 in l for t in l2]
+
+def input_maps():
+    return _process_input(
+        input('provide a string of map numbers from 0-9 to load; ex: 013\n>')
+        )
+def _process_input(file_numbers:str = '') -> set:
+    'provide a string of map numbers from 0-9; ex:"013" for 0,1,3'
+    if file_numbers == '': return set(i for i in range(10))
     try:
-        return int(id_str)
-    except:
-        #error
-        return 0
+        assert file_numbers.isdigit(), f'non-digit found: {file_numbers}'
+        areas = set(int(n) for n in file_numbers)
+        return areas
+    except Exception as e: print(e)
+    return set()
 
-def _load2layer(map_id:int,mapfile_data:dict):
+def _load_file(area_id:int):
+    return MapData( osjoin(IN_DIR ,f'area{area_id}.map') )
+
+def map_id2name(map_id:int) ->str:
+    return f'{map_id} {AREA_MAP[map_id]}'
+
+def filter_layer(filter_function, layer:list) -> list:
+    '''returns list of indices, filterfunction should take tuple of (index, value)'''
+    return filter(filter_function, enumerate(layer))
+
+def _check_item(t:tuple) -> bool:
+    '''returns True for items 1-95 (non-potions/atk ups)'''
+    i, x = t
+    return (x > 0) and (x <= 95)
+
+def _check_egg(t:tuple) -> bool:
+    '''returns True for event 250 (easter egg)'''
+    i, x = t
+    return x == 250
+
+def extract_map(map_id:int):
     '''Process map data into layers (leaving only items and event)'''
     con = sqlite3.connect(LOCATIONS_DB,uri=True)
     cur = con.cursor()
-    out = {'items':dict(),'eggs':defaultdict(set)}
-
     def parse_location(x,y):
         cur.execute('''SELECT NAME FROM ITEM_LOCATIONS
                        WHERE MAP_ID=? AND X=? AND Y=?''',
-                       (map_id,x/32,y/32))
+                       (map_id,x,y))
         result = cur.fetchone()
         return result[0] if result is not None else None
 
@@ -79,41 +81,41 @@ def _load2layer(map_id:int,mapfile_data:dict):
         result = cur.fetchone()
         return result[0] if result is not None else None
 
-    for layer in mapfile_data['layers']:
-        if layer['name'] == 'items':
-            items = layer['objects']
-        if layer['name'] == 'event':
-            events = layer['objects'] 
-        
-    for item in filter(_check_item,items):
-            id_int = id_str2int(item['name'])
-            name = parse_name(item['name'])
-            location = parse_location(item['x'],item['y'])
-            if id_int != 0 and name is not None and location is not None:
-                out['items'][id_int] = {
-                    'id':id_int,'name':name,
+    map_data = _load_file(map_id)
+    items, events = (map_data.data_map[s] for s in ('items','event'))
+    out = {'items':dict(),'eggs':set()}
+    #items    
+    for i, item in filter_layer(_check_item,items):
+        name = parse_name(item)
+        x,y = map_coords(i)
+        location = parse_location(x,y)
+        if name is None or location is None: continue
+        out['items'][item] = {
+                    'id':item,'name':name,
                     'map':map_id,'location':location}
-    for egg in filter(_check_egg,events):
-            out['eggs'][map_id].add(parse_location(egg['x'],egg['y']))
+    #egg    
+    for i,egg in filter_layer(_check_egg,events):
+        x,y = map_coords(i)
+        out['eggs'].add(parse_location(x,y))
     con.close()
     return out
 
 def load():
-    nums = _process_input(input('provide a string of map numbers from 0-9 to load; ex: 013\n>'))
-    if len(nums) == 0: return (dict(),0)
+    nums = input_maps()
+    if len(nums) == 0: return (dict(),tuple())
     
-    data = defaultdict(dict)
+    data = {'items':dict(),'eggs':defaultdict(set)}
     maps = list()
     for n in nums:
         try:
-            map_data = _load2layer(n,_load_file(n))
-            for k,v in map_data.items():
-                data[k].update(v)
+            map_data = extract_map(n)
+            data['items'].update(map_data['items'])
+            data['eggs'][n].update(map_data['eggs'])
             maps.append(n)
         except Exception as e:
             print(type(e),e)
             print(f'Failed to load: area{n}.json')
-    return (data,maps)
+    return data,maps
 
 #################################process/search############################
 def item_list(maps_data:dict,id_filter:set = None,map_filter:set = None):
@@ -124,10 +126,11 @@ def item_list(maps_data:dict,id_filter:set = None,map_filter:set = None):
     return items
 
 def print_items(items:list,sort_key="id"):
-    assert sort_key in {'id','name','map','location'},\
-           "sort_key is not one of these: 'id','name','map','location'"
-    if sort_key != "":
-        items.sort(key=lambda d: d[sort_key])
+    try:
+        assert sort_key in {'id','name','map','location'},\
+               "sort_key is not one of these: 'id','name','map','location'"
+    except Exception as e: print(e); return
+    items.sort(key=lambda d: d[sort_key])
     for item in items:
         print(f"ID:{item['id']:<3} "+
               f"Name:{item['name']:<15} "+
@@ -135,14 +138,9 @@ def print_items(items:list,sort_key="id"):
         print(' '*7+f"Location:{item['location']}")
         print()
         
-def progression_locations(maps_data:dict,map_filter:set = None):
-    progression_ids = {1,2,3,4,10,
-                       11,16,17,18,19,
-                       28,29,30,31,33,35}
-    return item_list(maps_data,id_filter=progression_ids,map_filter=map_filter)
-
 def progression(maps_data:dict,map_filter:set = None,sort_key='id'):
-    print_items(progression_locations(maps_data,map_filter),sort_key)
+    items = item_list(maps_data,id_filter=PROGRESSION_IDS,map_filter=map_filter)
+    print_items(items,sort_key)
 
 def eggs(maps_data:dict,map_filter:set = None):
     maps = set(maps_data['eggs'].keys())
@@ -153,12 +151,6 @@ def eggs(maps_data:dict,map_filter:set = None):
               f" Egg Count={len(maps_data['eggs'][map_id])}")
         for egg in maps_data['eggs'][map_id]: print(' '*6 + egg)
         print()
-
-def routine(option:str, maps_data:dict):
-    map_filter = _process_input(input('provide a string of map numbers from 0-9 to search in; ex: 013\n>'))
-    if len(map_filter) == 0: return
-    if option == 'eggs': eggs(maps_data,map_filter)
-    if option == 'progression': progression(maps_data,map_filter)
 
 def item(items:dict):
     item_input = input('type in the item id\n>')
@@ -174,6 +166,12 @@ def item(items:dict):
     except Exception as e:
         print('unknown input:',item_input)
         print(type(e),e)
+
+def routine(option:str, maps_data:dict):
+    map_filter = _process_input(input('provide a string of map numbers from 0-9 to search in; ex: 013\n>'))
+    if option == 'eggs': eggs(maps_data,map_filter)
+    if option == 'progression': progression(maps_data,map_filter)
+    if option == 'items': item(maps_data['items'])
 
 def main():
     t=None
@@ -200,13 +198,13 @@ def main():
                            +'\n3. item'
                            +'\n4. re"load" the mapfiles'
                            +'\n5. "quit" this program'
-                           +'\n'+'>')
+                           +'\n'+'>').strip()
         if user_input == '1' or user_input.lower() == 'eggs':
             routine('eggs',t)
         elif user_input == '2' or user_input.lower() == 'progression':
             routine('progression',t)
         elif user_input == '3' or user_input.lower() == 'item':
-            item(t['items'])
+            routine('item',t)
         elif user_input == '4' or user_input.lower() == 'load':
             load_routine()
         elif user_input == '5' or user_input.lower() == 'quit':
