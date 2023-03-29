@@ -156,26 +156,27 @@ def eggs(maps_data:dict,map_filter:set = None):
         for egg in maps_data['eggs'][map_id]: print(' '*6 + egg)
         print()
 
-def item(items:dict):
-    item_input = input('type in the item id\n>')
+def items(map_data:dict, map_filter:set = None):
+    item_input = input('type in the item ids, separated by commas: ex. "1,5"\n>')
     try:
-        item_id = int(item_input)
-        if not (item_id > 0 and item_id <= 95):
-            print(f'Item {item_id} is not in the range (0,95]')
-            return
-        if item_id not in items.keys():
-            print(f'Item {item_id} not found in the loaded maps.')
-            return
-        print_items([items[item_id]])
+        ids = [i.strip() for i in item_input.split(',')]
+        for i, x in enumerate(ids):
+            assert x.isdigit(), f'not a number: {x} at {i}'
+            x = int(x)
+            assert (x > 0) and (x <= 95), f'Item {x} is not in the range [1,95]'
+            ids[i] = x
     except Exception as e:
-        print('unknown input:',item_input)
-        print(type(e),e)
+        print(e)
+        print()
+        return
+    items = item_list(map_data, set(ids), map_filter)
+    print_items(items, sort_key = 'map')
 
 def routine(option:str, maps_data:dict):
     map_filter = _process_input(input('provide a string of map numbers from 0-9 to search in; ex: 013\n>'))
     if option == 'eggs': eggs(maps_data,map_filter)
     if option == 'progression': progression(maps_data,map_filter)
-    if option == 'items': item(maps_data['items'])
+    if option == 'items': items(maps_data, map_filter)
 
 def main():
     t=None
@@ -199,7 +200,7 @@ def main():
                            +'\n2. progression (which shows items'
                            +'\n'+' '*8 + '1,2,3,4,10,11,16,17,18,19,'
                            +'\n'+' '*8 + '28,29,30,31,33,35)'
-                           +'\n3. item'
+                           +'\n3. items (using item id)'
                            +'\n4. re"load" the mapfiles'
                            +'\n5. "quit" this program'
                            +'\n'+'>').strip()
@@ -207,8 +208,8 @@ def main():
             routine('eggs',t)
         elif user_input == '2' or user_input.lower() == 'progression':
             routine('progression',t)
-        elif user_input == '3' or user_input.lower() == 'item':
-            routine('item',t)
+        elif user_input == '3' or user_input.lower() == 'items':
+            routine('items',t)
         elif user_input == '4' or user_input.lower() == 'load':
             load_routine()
         elif user_input == '5' or user_input.lower() == 'quit':
