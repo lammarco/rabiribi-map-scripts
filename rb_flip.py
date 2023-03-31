@@ -1,7 +1,7 @@
 from diffgenerator import map_coords, map_index
 import rb_flip_helpers as rbf
 
-
+# !!! Run rb_mm.py; rb_flip just has the actual flipper functions
 ######################### DO NOT CHANGE
 MINIMAP_DIM = (25, 18)
 ROOM_DIM = (19,10)
