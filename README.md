@@ -2,7 +2,7 @@
 
 A collection of Python scripts to do various things with map files. Download the main branch for all the files, or get a specific branch:
 
-# [RabiRibi Map Flipper - Mirror Mode 2 (Branch)] (https://github.com/lammarco/rabiribi-map-scripts/tree/flip-main)
+# [RabiRibi Map Flipper - Mirror Mode 2 (Branch)](https://github.com/lammarco/rabiribi-map-scripts/tree/flip-main)
 
 Flip rb maps just like Mirror Mode on April Fools.. except with patches to stop a lot of things from breaking!
 
@@ -34,9 +34,9 @@ Known issues / workarounds
 
 - RANDOMIZER: generate seeds using ZIPS_REQUIRED = False, since zips now go in the opposite direction (in relation to the map)
 
-Note: uses [wcko's diffgenerator.py from randomizer] (https://github.com/wcko87/revised-rabi-ribi-randomizer/blob/0cfd17deebdcfbc55247dec25b9300cbec7548cc/converter/diffgenerator.py)
+Note: uses [wcko's diffgenerator.py from randomizer](https://github.com/wcko87/revised-rabi-ribi-randomizer/blob/0cfd17deebdcfbc55247dec25b9300cbec7548cc/converter/diffgenerator.py)
 
-# [Rabi-Ribi Randomizer Search] (https://github.com/lammarco/rabiribi-map-scripts/tree/rando-search-main)
+# [Rabi-Ribi Randomizer Search](https://github.com/lammarco/rabiribi-map-scripts/tree/rando-search-main)
 
 A python script to help players find progression items and eggs during randomizers (considered cheating if used in a race).
 
