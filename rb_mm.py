@@ -27,9 +27,8 @@ def check_paths() -> bool:
 def map_routine(i:int):
     print(f'loading area{i}.map...',end='\t')
     map_data = diff.MapData(filepath(IN_DIR,i))
-    if i != 8:
-        flip_map(i, map_data.data_map)
-        flip_minimap(map_data.data_minimap)
+    flip_map(i, map_data.data_map)
+    flip_minimap(map_data.data_minimap)
     map_data.save_to_file  (filepath(OUT_DIR,i))
     print(f'saving area{i}.map...')
             
