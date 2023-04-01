@@ -26,10 +26,15 @@ def flip_minimap(layers:dict):
         data[:] = [t for l2 in l for t in l2]
         
 def flip_map(map_id:int, layers:dict):
+    l = layers['collision']
+    rbf.transpose(l, 200)
+    anti_death_safety_net(l,rbf.get_collision_offset(l)+1)
+    rbf.transpose(l, 500)
+    if map_id == 8: return
     if map_id == 5 or map_id == 0: #only flip transitions for town
         l = layers['event']
         rbf.transpose(l, 200)
-        if map_id == 5: flip_transitions(l)
+        if map_id == 5:   flip_transitions(l)
         elif map_id == 0: flip_rando(l)
         rbf.transpose(l, 500)
         if map_id == 5: return 
@@ -38,12 +43,14 @@ def flip_map(map_id:int, layers:dict):
         rbf.transpose(data, 200)
         if   layer == 'items':     pass
         elif layer == 'event':     flip_events(map_id, data)
-        elif layer == 'collision': flip_collision(data, rbf.build_collision_flip(data))
+        elif layer == 'collision': flip_collision(data, make_collision_flip(data))
         else:                      flip_layer_x(data)
         flip_map_x(data)
         rbf.transpose(data, 500)
-
-
+        
+def make_collision_flip(data):
+    return rbf.build_collision_flip(data,rbf.get_collision_offset(data))
+    
 def flip_map_x(tile_list:list):
     for r in range(HEIGHT): rbf.flip_row(tile_list, r, WIDTH)
 
@@ -65,9 +72,10 @@ def flip_events(map_id:int, events_list:'list<int>'):
     offset_events(events_list)
 
 
-
 #helpers for flip_events
-    
+def anti_death_safety_net(data,solid_id): #changes bottom of map to solid collision
+    data[(HEIGHT-8)*WIDTH:] = (solid_id for _ in range(WIDTH*8))
+        
 def offset_events(events_list):
     f = filter(lambda t: t[1] in EVENT_OFFSETS, enumerate(events_list))
     for i,event in f: rbf.swap(events_list, i, EVENT_OFFSETS[event](i))

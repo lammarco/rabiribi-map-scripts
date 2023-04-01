@@ -55,11 +55,14 @@ def swap(l:list, index1: int, index2: int):
     l[index1], l[index2] = l[index2], l[index1]
     
 #collision helper
-def build_collision_flip(tiles):
-    offset = min(filter(lambda t: t != 0, tiles)) - 1
-    flip_direction = not(offset % 2)
-    collision_ids  = set(offset+i for i in range(2,14))
-    collision_ids.update(offset+i for i in (16,17))
+def get_collision_offset(tiles):
+    '''returns solid_collision - 1'''
+    return min(filter(lambda t: t != 0, tiles)) - 1
+
+def build_collision_flip(tiles, collision_offset):
+    flip_direction = not(collision_offset % 2)
+    collision_ids  = set(collision_offset+i for i in range(2,14))
+    collision_ids.update(collision_offset+i for i in (16,17))
 
     def flip_col(i:int): return i+1 if i%2 ^ flip_direction else i-1
     collision_flipx = {i:flip_col(i) for i in collision_ids}
