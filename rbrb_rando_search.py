@@ -5,7 +5,7 @@ from diffgenerator import MapData, map_coords, map_index
 
 IN_DIR = r'./maps/original/' 
 LOCATIONS_DB = './rbrb_locations.db'
-MIRROR_MODE = True
+MIRROR_MODE = False
 
 #DO NOT CHANGE
 WIDTH = 500
