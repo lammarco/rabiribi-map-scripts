@@ -1,11 +1,11 @@
 import sqlite3
 from os.path import join as osjoin
-from collections import defaultdict
-from diffgenerator import MapData, map_coords
+from collections import defaultdict, namedtuple
+from diffgenerator import MapData, map_coords, map_index
 
 IN_DIR = r'./maps/original/' 
 LOCATIONS_DB = './rbrb_locations.db'
-MIRROR_MODE = True
+MIRROR_MODE = False
 
 #DO NOT CHANGE
 WIDTH = 500
@@ -24,6 +24,33 @@ AREA_MAP = {
 PROGRESSION_IDS = {1,2,3,4,10,
                    11,16,17,18,19,
                    28,29,30,31,33,35}
+
+########################### Transitions Stuff ################################
+TRIGGER_MAP = {
+                200 : 227,
+                201 : 228,
+                202 : 229,
+                203 : 230,
+                204 : 231,
+                205 : 232,
+                206 : 176,
+                207 : 177
+}
+
+TransitionInfo    = namedtuple( 'TransitionInfo', ['map_id','direction', 'trigger_x', 'target_x', 'mapid_x', 'y', 'name'] ) # tuple format, same as query schema
+
+TransitionTrigger = namedtuple( 'TransitionTrigger', ['target_map','trigger_id','direction'] ) #tuple as key, name as value
+TransitionTarget  = namedtuple( 'TransitionTarget' , ['map_id','target_id','direction'] ) #tuple as key, name as value
+
+def trigger2target( trigger:TransitionTrigger ) -> TransitionTarget:
+    target_map, trigger_id, direction = trigger
+    return TransitionTarget( target_map, TRIGGER_MAP[trigger_id], not direction)
+
+# for compact/non-duplicate view    
+#def format_transition( trigger_name:str, target_name:str, direction:bool ) -> str:
+#    if direction:
+#        target_name, trigger_name = trigger_name, target_name
+#    return f'{trigger_name} <-> {target_name}'
 
 ############################loading################################
 def d2l(layer:list):
@@ -64,6 +91,19 @@ def _check_egg(t:tuple) -> bool:
     '''returns True for event 250 (easter egg)'''
     i, x = t
     return x == 250
+    
+def _check_transition( t:tuple, positions:set) -> bool:
+    '''returns True if object is at one of positions for transitions'''
+    i,x = t
+    return map_coords(i) in positions
+    
+def _get_transitions( map_id:int, cur ) -> set[TransitionInfo]:
+    cur.execute('''SELECT MAP_ID,DIRECTION,TRIGGER_X,TARGET_X,MAPID_X,Y,NAME
+                    FROM TRANSITIONS WHERE MAP_ID=?''', (map_id,))
+    transitions = set()
+    for result in cur:
+        transitions.add( TransitionInfo( *result ) )
+    return transitions
 
 def extract_map(map_id:int):
     '''Process map data into layers (leaving only items and event)'''
@@ -86,7 +126,12 @@ def extract_map(map_id:int):
 
     map_data = _load_file(map_id)
     items, events = (map_data.data_map[s] for s in ('items','event'))
-    out = {'items':dict(),'eggs':set()}
+    out = {
+        'items':dict(),
+        'eggs':set(),
+        'transition_triggers':dict(),
+        'transition_targets':dict()
+    }
     #items    
     for i, item in filter_layer(_check_item,items):
         name = parse_name(item)
@@ -101,6 +146,32 @@ def extract_map(map_id:int):
         x,y = map_coords(i)
         loc = parse_location(x,y)
         if loc is not None: out['eggs'].add(loc)
+        
+    #transition
+    for transition in _get_transitions( map_id, cur ):
+        transition_xs = ( transition.mapid_x, transition.trigger_x, transition.target_x ) #TODO: improve readability
+        mapid_i, trigger_i, target_i = ( map_index( x, transition.y ) for x in transition_xs)
+        
+        assert all( i < len(events) for i in (mapid_i, trigger_i, target_i) ) , f'Invalid transition position: {transition}'
+        
+        target_map = events[mapid_i] - 161
+        trigger_id = events[trigger_i]
+        target_id = events[target_i]
+        
+        try:
+            assert target_map >= 0 and target_map < 10, f'Invalid transition target map: {transition}'
+            assert trigger_id in TRIGGER_MAP        , f'Invalid transition trigger: {transition}'
+            assert target_id in TRIGGER_MAP.values(), f'Invalid transition target: {transition}'
+        except AssertionError as e:
+            print( e )
+            continue
+        
+        d = transition.direction == 'L'
+        trigger = TransitionTrigger( target_map, trigger_id, d )
+        target  = TransitionTarget ( map_id,     target_id,  d )
+        out[ 'transition_triggers' ][ trigger ] = transition.name
+        out[ 'transition_targets'  ][ target ]  = transition.name
+    
     con.close()
     return out
 
@@ -108,13 +179,15 @@ def load():
     nums = input_maps()
     if len(nums) == 0: return (dict(),tuple())
     
-    data = {'items':dict(),'eggs':defaultdict(set)}
+    data = {'items':dict(),'eggs':defaultdict(set), 'transition_triggers':dict(), 'transition_targets':dict()}
     maps = list()
     for n in nums:
         try:
             map_data = extract_map(n)
             data['items'].update(map_data['items'])
             data['eggs'][n].update(map_data['eggs'])
+            data['transition_triggers'].update( map_data['transition_triggers'] )
+            data['transition_targets'] .update( map_data['transition_targets']  )
             maps.append(n)
         except Exception as e:
             print(type(e),e)
@@ -171,12 +244,35 @@ def items(map_data:dict, map_filter:set = None):
         return
     items = item_list(map_data, set(ids), map_filter)
     print_items(items, sort_key = 'map')
+    
+def transitions(map_data:dict, map_filter:set = None):
+    triggers = map_data['transition_triggers']
+    targets  = map_data['transition_targets']
+    
+    connections: dict[int,set] = defaultdict(set)
+    #pair triggers with targets
+    for trigger, trigger_name in triggers.items():
+        target = trigger2target( trigger )
+        
+        if (trigger.target_map not in map_filter) or (target not in targets): 
+            continue
+        
+        #transition_connection = format_transition( trigger_name, targets[target], trigger.direction ) #for compact/non-duplicate view    
+        
+        connections[target.map_id].add( f'{targets[target]:<27} <-> {trigger_name:<27}' )
+            
+    for n in sorted(map_filter):
+        if n not in connections: continue
+        print(  f'Map {n}', '\n\t'.join( sorted(connections[n]) ), sep='\n\t' )
+    
+    print()
 
 def routine(option:str, maps_data:dict):
     map_filter = _process_input(input('provide a string of map numbers from 0-9 to search in; ex: 013\n>'))
     if option == 'eggs': eggs(maps_data,map_filter)
     if option == 'progression': progression(maps_data,map_filter)
     if option == 'items': items(maps_data, map_filter)
+    if option == 'transitions': transitions(maps_data, map_filter)
 
 def main():
     t=None
@@ -201,8 +297,9 @@ def main():
                            +'\n'+' '*8 + '1,2,3,4,10,11,16,17,18,19,'
                            +'\n'+' '*8 + '28,29,30,31,33,35)'
                            +'\n3. items (using item id)'
-                           +'\n4. re"load" the mapfiles'
-                           +'\n5. "quit" this program'
+                           +'\n4. transitions'
+                           +'\n5. re"load" the mapfiles'
+                           +'\n6. "quit" this program'
                            +'\n'+'>').strip()
         if user_input == '1' or user_input.lower() == 'eggs':
             routine('eggs',t)
@@ -210,9 +307,11 @@ def main():
             routine('progression',t)
         elif user_input == '3' or user_input.lower() == 'items':
             routine('items',t)
-        elif user_input == '4' or user_input.lower() == 'load':
+        elif user_input == '4' or user_input.lower() == 'transitions':
+            routine('transitions',t)
+        elif user_input == '5' or user_input.lower() == 'load':
             load_routine()
-        elif user_input == '5' or user_input.lower() == 'quit':
+        elif user_input == '6' or user_input.lower() == 'quit':
             return
         else: print('Unrecognized input: ' + user_input)
 
